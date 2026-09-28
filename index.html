@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>글월 — 문서 편집기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&family=Nanum+Myeongjo:wght@400;700&family=Nanum+Gothic:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.css">
+<style>
+:root{
+  --ink:#191919; --ink-soft:#3d3d3b; --paper:#ffffff; --bg:#f6f5f2; --surface:#ffffff;
+  --line:#e7e5df; --line-strong:#dcdad2; --accent:#3182f6; --accent-hover:#1c6fe0; --accent-soft:#eaf2fe;
+  --muted:#8b8b86; --radius:10px; --radius-sm:7px;
+  --font-ui:'Pretendard','Noto Sans KR',-apple-system,BlinkMacSystemFont,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--font-ui);-webkit-font-smoothing:antialiased}
+button,select,input{font-family:inherit}
+#app{display:flex;flex-direction:column;height:100vh;}
+
+/* ---- top bar ---- */
+#titlebar{background:var(--surface);color:var(--ink);padding:13px 22px;display:flex;align-items:center;gap:14px;flex-shrink:0;border-bottom:1px solid var(--line)}
+#titlebar h1{font-size:15px;font-weight:700;margin:0;letter-spacing:-.01em;display:flex;align-items:center;gap:6px}
+#titlebar h1::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent);display:inline-block}
+#docTitleInput{background:transparent;border:none;color:var(--ink-soft);font-size:14px;padding:5px 8px;width:220px;border-radius:var(--radius-sm)}
+#docTitleInput::placeholder{color:var(--muted)}
+#docTitleInput:hover,#docTitleInput:focus{background:var(--bg);outline:none}
+.spacer{flex:1}
+.tb-btn{background:transparent;border:none;color:var(--ink-soft);padding:8px 14px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;cursor:pointer;transition:background .12s}
+.tb-btn:hover{background:var(--bg)}
+.tb-btn.primary{background:var(--accent);color:#fff;font-weight:600}
+.tb-btn.primary:hover{background:var(--accent-hover)}
+
+/* ---- toolbar ---- */
+#toolbar{background:var(--surface);border-bottom:1px solid var(--line);padding:9px 22px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 4px;flex-shrink:0}
+.grp{display:flex;align-items:center;gap:4px;padding:0 10px;border-right:1px solid var(--line)}
+.grp:last-child{border-right:none}
+.grp label{font-size:11.5px;color:var(--muted);white-space:nowrap;margin-right:2px}
+.grp select,.grp input[type=number]{border:1px solid var(--line);border-radius:var(--radius-sm);padding:5px 7px;font-size:12.5px;background:var(--bg);color:var(--ink-soft)}
+.grp select:hover,.grp input[type=number]:hover{border-color:var(--line-strong)}
+.ibtn{width:30px;height:30px;border:none;background:transparent;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;color:var(--ink-soft);transition:background .12s}
+.ibtn:hover{background:var(--bg)}
+.ibtn.active{background:var(--accent-soft);color:var(--accent)}
+.ibtn svg{width:15px;height:15px}
+input[type=range]{width:70px;accent-color:var(--accent)}
+.rangeval{font-size:11px;color:var(--muted);width:34px}
+input[type=color]{width:28px;height:28px;border:1px solid var(--line);border-radius:50%;padding:0;cursor:pointer;overflow:hidden}
+input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px}
+
+/* ---- workspace ---- */
+#workspace{flex:1;overflow:auto;display:flex;justify-content:center;padding:44px 20px}
+#page{background:var(--paper);box-shadow:0 1px 2px rgba(20,20,18,.04),0 10px 30px rgba(20,20,18,.06);outline:none;font-family:var(--font-ui);border-radius:2px}
+#page h1.chapter{font-size:1.55em;font-weight:700;margin:0 0 .6em;padding-bottom:.4em;border-bottom:1px solid var(--line-strong);}
+#page p{margin:0 0 1em;}
+
+/* ---- settings modal ---- */
+.overlay{position:fixed;inset:0;background:rgba(25,25,25,.38);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;backdrop-filter:blur(2px)}
+.overlay.show{display:flex}
+.modal{background:#fff;border-radius:16px;max-width:560px;width:100%;max-height:88vh;overflow:auto;padding:26px 28px;box-shadow:0 20px 60px rgba(20,20,18,.18)}
+.modal h2{margin:0 0 4px;font-size:17px;font-weight:700;letter-spacing:-.01em}
+.modal .sub{color:var(--muted);font-size:12.5px;margin:0 0 18px;line-height:1.5}
+.fieldrow{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.field{flex:1;min-width:120px}
+.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:500}
+.field input,.field select{width:100%;border:1px solid transparent;background:var(--bg);border-radius:var(--radius-sm);padding:9px 10px;font-size:13px;color:var(--ink);transition:border-color .12s}
+.field input:focus,.field select:focus{outline:none;border-color:var(--accent);background:#fff}
+.section-title{font-size:13px;font-weight:700;color:var(--ink);margin:20px 0 10px;padding-top:16px;border-top:1px solid var(--line)}
+.section-title:first-of-type{margin-top:0;padding-top:0;border-top:none}
+.checkline{display:flex;align-items:center;gap:8px;font-size:13.5px;margin-bottom:10px;color:var(--ink-soft)}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+.btn{padding:9px 16px;border-radius:var(--radius-sm);border:none;background:var(--bg);color:var(--ink-soft);cursor:pointer;font-size:13px;font-weight:500;transition:background .12s}
+.btn:hover{background:var(--line)}
+.btn.primary{background:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent-hover)}
+
+/* ---- book preview ---- */
+#bookOverlay{position:fixed;inset:0;background:#2b2a28;z-index:60;display:none;flex-direction:column}
+#bookOverlay.show{display:flex}
+#bookTop{background:#211f1d;color:#fff;padding:12px 20px;display:flex;align-items:center;gap:10px;flex-shrink:0;font-size:13.5px;font-weight:500}
+#bookTop .spacer{flex:1}
+#bookTop .tb-btn{color:#fff}
+#bookTop .tb-btn:hover{background:rgba(255,255,255,.1)}
+#bookNav{flex:1;overflow:auto;display:flex;justify-content:center;align-items:flex-start;padding:36px}
+.bookpage{background:#fff;box-shadow:0 8px 32px rgba(0,0,0,.35);position:relative;display:flex;flex-direction:column;border-radius:2px}
+.bp-header{font-size:11px;color:#a3a39c;text-align:center;flex-shrink:0}
+.bp-body{flex:1;overflow:hidden}
+.bp-footer{font-size:11px;color:#a3a39c;text-align:center;flex-shrink:0}
+.bp-cover{align-items:center;justify-content:center;text-align:center;display:flex;flex-direction:column;gap:10px}
+.bp-toc li{margin-bottom:8px;display:flex;justify-content:space-between;font-size:14px;color:var(--ink-soft)}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="titlebar">
+    <h1>글월</h1>
+    <input id="docTitleInput" placeholder="제목 없는 문서">
+    <div class="spacer"></div>
+    <button class="tb-btn" id="btnSettings">⚙ 페이지 설정</button>
+    <button class="tb-btn" id="btnPreview">📖 책 미리보기</button>
+    <button class="tb-btn primary" id="btnExport">⬇ HTML로 내보내기</button>
+  </div>
+
+  <div id="toolbar">
+    <div class="grp">
+      <select id="fontFamily">
+        <option value="'Noto Sans KR',sans-serif">맑은 고딕</option>
+        <option value="'Noto Serif KR',serif">본명조</option>
+        <option value="'Nanum Myeongjo',serif">나눔명조</option>
+        <option value="'Nanum Gothic',sans-serif">나눔고딕</option>
+      </select>
+      <select id="fontSize">
+        <option>10</option><option>11</option><option selected>12</option><option>14</option><option>16</option><option>18</option><option>20</option><option>24</option><option>28</option>
+      </select>
+    </div>
+    <div class="grp">
+      <button class="ibtn" data-cmd="bold" style="font-weight:700">B</button>
+      <button class="ibtn" data-cmd="italic" style="font-style:italic">I</button>
+      <button class="ibtn" data-cmd="underline" style="text-decoration:underline">U</button>
+      <input type="color" id="textColor" value="#1b1d1f" title="글자색">
+    </div>
+    <div class="grp">
+      <button class="ibtn" data-align="Left" title="왼쪽 정렬"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="10" y2="8"/><line x1="2" y1="12" x2="12" y2="12"/></svg></button>
+      <button class="ibtn" data-align="Center" title="가운데 정렬"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="2" y1="4" x2="14" y2="4"/><line x1="4" y1="8" x2="12" y2="8"/><line x1="3" y1="12" x2="13" y2="12"/></svg></button>
+      <button class="ibtn" data-align="Right" title="오른쪽 정렬"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="2" y1="4" x2="14" y2="4"/><line x1="6" y1="8" x2="14" y2="8"/><line x1="4" y1="12" x2="14" y2="12"/></svg></button>
+      <button class="ibtn" data-align="Full" title="양쪽 정렬"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="14" y2="12"/></svg></button>
+    </div>
+    <div class="grp">
+      <label>장평</label>
+      <input type="range" id="hscale" min="70" max="130" value="100">
+      <span class="rangeval" id="hscaleVal">100%</span>
+    </div>
+    <div class="grp">
+      <label>자간</label>
+      <input type="range" id="letterSpacing" min="-3" max="10" value="0">
+      <span class="rangeval" id="letterSpacingVal">0px</span>
+    </div>
+    <div class="grp">
+      <label>줄간격</label>
+      <select id="lineHeight">
+        <option value="1.3">130%</option>
+        <option value="1.6" selected>160%</option>
+        <option value="1.8">180%</option>
+        <option value="2.0">200%</option>
+        <option value="2.5">250%</option>
+      </select>
+    </div>
+    <div class="grp">
+      <button class="ibtn" id="btnChapter" title="새 챕터" style="width:auto;padding:0 10px;">＋챕터</button>
+    </div>
+  </div>
+
+  <div id="workspace">
+    <div id="page" contenteditable="true" spellcheck="false">
+      <h1 class="chapter">1장. 시작하는 글</h1>
+      <p>여기에 내용을 입력하세요. 위 도구모음에서 글꼴, 크기, 장평, 자간, 줄간격을 바꿀 수 있습니다.</p>
+    </div>
+  </div>
+</div>
+
+<!-- 설정 모달 -->
+<div class="overlay" id="settingsOverlay">
+  <div class="modal">
+    <h2>페이지 설정</h2>
+    <p class="sub">용지·여백·머리말/꼬리말·표지·목차를 설정합니다. 내보낼 책에 그대로 적용됩니다.</p>
+
+    <div class="section-title">용지</div>
+    <div class="fieldrow">
+      <div class="field"><label>용지 크기</label>
+        <select id="paperPreset">
+          <option value="A4">A4 (210×297mm)</option>
+          <option value="B5">B5 (176×250mm)</option>
+          <option value="Letter">Letter (216×279mm)</option>
+          <option value="custom">사용자 지정</option>
+        </select>
+      </div>
+      <div class="field"><label>너비(mm)</label><input type="number" id="paperW" value="210"></div>
+      <div class="field"><label>높이(mm)</label><input type="number" id="paperH" value="297"></div>
+    </div>
+    <div class="fieldrow">
+      <div class="field"><label>위 여백(mm)</label><input type="number" id="mT" value="25"></div>
+      <div class="field"><label>아래 여백(mm)</label><input type="number" id="mB" value="25"></div>
+      <div class="field"><label>왼쪽 여백(mm)</label><input type="number" id="mL" value="22"></div>
+      <div class="field"><label>오른쪽 여백(mm)</label><input type="number" id="mR" value="22"></div>
+    </div>
+
+    <div class="section-title">머리말 / 꼬리말 / 쪽번호</div>
+    <div class="fieldrow">
+      <div class="field"><label>머리말 텍스트</label><input type="text" id="headerText" placeholder="예: 나의 원고"></div>
+      <div class="field"><label>꼬리말 텍스트</label><input type="text" id="footerText" placeholder="비워두면 표시 안 함"></div>
+    </div>
+    <label class="checkline"><input type="checkbox" id="showPageNum" checked> 쪽번호 표시</label>
+    <div class="fieldrow">
+      <div class="field"><label>쪽번호 위치</label>
+        <select id="pageNumPos"><option value="center">하단 중앙</option><option value="right">하단 오른쪽</option></select>
+      </div>
+    </div>
+
+    <div class="section-title">표지 · 목차</div>
+    <div class="fieldrow">
+      <div class="field"><label>책 제목</label><input type="text" id="coverTitle" placeholder="책 제목"></div>
+    </div>
+    <div class="fieldrow">
+      <div class="field"><label>부제</label><input type="text" id="coverSubtitle" placeholder="(선택)"></div>
+      <div class="field"><label>저자</label><input type="text" id="coverAuthor" placeholder="(선택)"></div>
+    </div>
+    <label class="checkline"><input type="checkbox" id="showToc" checked> 목차 페이지 자동 생성 (＋챕터로 넣은 제목 기준)</label>
+
+    <div class="modal-actions">
+      <button class="btn" id="settingsCancel">닫기</button>
+      <button class="btn primary" id="settingsSave">적용</button>
+    </div>
+  </div>
+</div>
+
+<!-- 책 미리보기 -->
+<div id="bookOverlay">
+  <div id="bookTop">
+    <span>📖 책 미리보기</span>
+    <div class="spacer"></div>
+    <button class="tb-btn" id="btnBookClose">닫기</button>
+  </div>
+  <div id="bookNav"></div>
+</div>
+
+<script>
+const page = document.getElementById('page');
+const MM = v => v * 3.7795275591; // px @ 96dpi
+
+let settings = JSON.parse(localStorage.getItem('geulwol_settings') || 'null') || {
+  paperW:210, paperH:297, mT:25, mB:25, mL:22, mR:22,
+  headerText:'', footerText:'', showPageNum:true, pageNumPos:'center',
+  coverTitle:'', coverSubtitle:'', coverAuthor:'', showToc:true
+};
+
+// restore saved draft
+const savedContent = localStorage.getItem('geulwol_content');
+const savedTitle = localStorage.getItem('geulwol_title');
+if(savedContent) page.innerHTML = savedContent;
+if(savedTitle) document.getElementById('docTitleInput').value = savedTitle;
+
+function applyPageBox(){
+  page.style.width = MM(settings.paperW)+'px';
+  page.style.minHeight = MM(settings.paperH)+'px';
+  page.style.padding = `${MM(settings.mT)}px ${MM(settings.mR)}px ${MM(settings.mB)}px ${MM(settings.mL)}px`;
+}
+applyPageBox();
+
+function autosave(){
+  localStorage.setItem('geulwol_content', page.innerHTML);
+  localStorage.setItem('geulwol_title', document.getElementById('docTitleInput').value);
+}
+page.addEventListener('input', autosave);
+document.getElementById('docTitleInput').addEventListener('input', autosave);
+
+// ---- toolbar: bold/italic/underline/align ----
+document.querySelectorAll('[data-cmd]').forEach(b=>{
+  b.addEventListener('mousedown', e=>e.preventDefault());
+  b.addEventListener('click', ()=>{ page.focus(); document.execCommand(b.dataset.cmd,false,null); });
+});
+document.querySelectorAll('[data-align]').forEach(b=>{
+  b.addEventListener('mousedown', e=>e.preventDefault());
+  b.addEventListener('click', ()=>{ page.focus(); document.execCommand('justify'+b.dataset.align,false,null); });
+});
+
+// generic: wrap current selection in a styled span
+function wrapSelectionStyle(styleFn){
+  const sel = window.getSelection();
+  if(!sel.rangeCount || sel.isCollapsed) return;
+  const range = sel.getRangeAt(0);
+  const span = document.createElement('span');
+  styleFn(span.style);
+  try{
+    range.surroundContents(span);
+  }catch(e){
+    const frag = range.extractContents();
+    span.appendChild(frag);
+    range.insertNode(span);
+  }
+  sel.removeAllRanges();
+  const r2 = document.createRange(); r2.selectNodeContents(span);
+  sel.addRange(r2);
+  autosave();
+}
+document.getElementById('fontFamily').addEventListener('change', e=>{
+  page.focus(); wrapSelectionStyle(s=>s.fontFamily=e.target.value);
+});
+document.getElementById('fontSize').addEventListener('change', e=>{
+  page.focus(); wrapSelectionStyle(s=>s.fontSize=e.target.value+'pt');
+});
+document.getElementById('textColor').addEventListener('input', e=>{
+  page.focus(); wrapSelectionStyle(s=>s.color=e.target.value);
+});
+const hscale = document.getElementById('hscale'), hscaleVal = document.getElementById('hscaleVal');
+hscale.addEventListener('input', ()=>hscaleVal.textContent = hscale.value+'%');
+hscale.addEventListener('change', ()=>{
+  page.focus();
+  wrapSelectionStyle(s=>{ s.display='inline-block'; s.transform=`scaleX(${hscale.value/100})`; s.transformOrigin='left'; });
+});
+const ls = document.getElementById('letterSpacing'), lsVal = document.getElementById('letterSpacingVal');
+ls.addEventListener('input', ()=>lsVal.textContent = ls.value+'px');
+ls.addEventListener('change', ()=>{
+  page.focus(); wrapSelectionStyle(s=>s.letterSpacing = ls.value+'px');
+});
+document.getElementById('lineHeight').addEventListener('change', e=>{
+  page.focus();
+  const sel = window.getSelection();
+  if(!sel.rangeCount) return;
+  let node = sel.getRangeAt(0).startContainer;
+  if(node.nodeType===3) node = node.parentElement;
+  const block = node.closest('p,h1,h2,li,blockquote') || page;
+  block.style.lineHeight = e.target.value;
+  autosave();
+});
+document.getElementById('btnChapter').addEventListener('click', ()=>{
+  const h = document.createElement('h1'); h.className='chapter'; h.textContent='새 챕터 제목';
+  const p = document.createElement('p'); p.textContent='내용을 입력하세요.';
+  page.appendChild(h); page.appendChild(p);
+  autosave();
+});
+
+// ---- settings modal ----
+const settingsOverlay = document.getElementById('settingsOverlay');
+function loadSettingsToForm(){
+  document.getElementById('paperW').value=settings.paperW;
+  document.getElementById('paperH').value=settings.paperH;
+  document.getElementById('mT').value=settings.mT;
+  document.getElementById('mB').value=settings.mB;
+  document.getElementById('mL').value=settings.mL;
+  document.getElementById('mR').value=settings.mR;
+  document.getElementById('headerText').value=settings.headerText;
+  document.getElementById('footerText').value=settings.footerText;
+  document.getElementById('showPageNum').checked=settings.showPageNum;
+  document.getElementById('pageNumPos').value=settings.pageNumPos;
+  document.getElementById('coverTitle').value=settings.coverTitle;
+  document.getElementById('coverSubtitle').value=settings.coverSubtitle;
+  document.getElementById('coverAuthor').value=settings.coverAuthor;
+  document.getElementById('showToc').checked=settings.showToc;
+}
+document.getElementById('btnSettings').addEventListener('click', ()=>{ loadSettingsToForm(); settingsOverlay.classList.add('show'); });
+document.getElementById('settingsCancel').addEventListener('click', ()=>settingsOverlay.classList.remove('show'));
+document.getElementById('paperPreset').addEventListener('change', e=>{
+  const presets = {A4:[210,297], B5:[176,250], Letter:[216,279]};
+  if(presets[e.target.value]){
+    document.getElementById('paperW').value = presets[e.target.value][0];
+    document.getElementById('paperH').value = presets[e.target.value][1];
+  }
+});
+document.getElementById('settingsSave').addEventListener('click', ()=>{
+  settings = {
+    paperW:+document.getElementById('paperW').value, paperH:+document.getElementById('paperH').value,
+    mT:+document.getElementById('mT').value, mB:+document.getElementById('mB').value,
+    mL:+document.getElementById('mL').value, mR:+document.getElementById('mR').value,
+    headerText:document.getElementById('headerText').value, footerText:document.getElementById('footerText').value,
+    showPageNum:document.getElementById('showPageNum').checked, pageNumPos:document.getElementById('pageNumPos').value,
+    coverTitle:document.getElementById('coverTitle').value, coverSubtitle:document.getElementById('coverSubtitle').value,
+    coverAuthor:document.getElementById('coverAuthor').value, showToc:document.getElementById('showToc').checked
+  };
+  localStorage.setItem('geulwol_settings', JSON.stringify(settings));
+  applyPageBox();
+  settingsOverlay.classList.remove('show');
+});
+
+// ---- pagination engine ----
+function paginateContent(sourceEl, contentWpx, contentHpx, fontCss){
+  const measurer = document.createElement('div');
+  measurer.style.cssText = `position:absolute;visibility:hidden;left:-99999px;top:0;width:${contentWpx}px;`;
+  measurer.setAttribute('style', measurer.getAttribute('style') + fontCss);
+  document.body.appendChild(measurer);
+  const blocks = Array.from(sourceEl.children);
+  const pages = [];
+  let current = document.createElement('div'); let curH = 0;
+  blocks.forEach(block=>{
+    const clone = block.cloneNode(true);
+    measurer.appendChild(clone);
+    const h = clone.getBoundingClientRect().height + 16; // approx margin
+    measurer.removeChild(clone);
+    const forceBreak = block.tagName === 'H1' && current.children.length > 0;
+    if(forceBreak || (curH + h > contentHpx && current.children.length>0)){
+      pages.push(current); current = document.createElement('div'); curH = 0;
+    }
+    current.appendChild(block.cloneNode(true));
+    curH += h;
+  });
+  if(current.children.length) pages.push(current);
+  document.body.removeChild(measurer);
+  return pages;
+}
+
+function buildBook(){
+  const contentW = MM(settings.paperW) - MM(settings.mL) - MM(settings.mR);
+  const headerRes = settings.headerText ? 26 : 0;
+  const footerRes = 26;
+  const contentH = MM(settings.paperH) - MM(settings.mT) - MM(settings.mB) - headerRes - footerRes;
+  const fontCss = `font-family:'Noto Serif KR',serif;font-size:12pt;line-height:1.6;`;
+  const pages = paginateContent(page, contentW, contentH, fontCss);
+
+  const toc = [];
+  pages.forEach((pg,i)=>{
+    const h1 = pg.querySelector('h1.chapter');
+    if(h1) toc.push({title:h1.textContent, page:i+1});
+  });
+  return {pages, toc, contentW, contentH, headerRes, footerRes};
+}
+
+function renderPageChrome(container, pageIndex, totalPages){
+  const w = MM(settings.paperW), h = MM(settings.paperH);
+  container.style.width = w+'px'; container.style.height = h+'px';
+  container.style.padding = `${MM(settings.mT)}px ${MM(settings.mR)}px ${MM(settings.mB)}px ${MM(settings.mL)}px`;
+  if(settings.headerText){
+    const hd = document.createElement('div'); hd.className='bp-header'; hd.textContent = settings.headerText;
+    container.appendChild(hd);
+  }
+  const body = document.createElement('div'); body.className='bp-body'; container.appendChild(body);
+  const ft = document.createElement('div'); ft.className='bp-footer';
+  if(settings.showPageNum){
+    ft.textContent = pageIndex;
+    ft.style.textAlign = settings.pageNumPos==='right' ? 'right' : 'center';
+  }
+  container.appendChild(ft);
+  return body;
+}
+
+function renderBookPreview(){
+  const {pages, toc} = buildBook();
+  const nav = document.getElementById('bookNav');
+  nav.innerHTML = '';
+  const scale = Math.min(1, (window.innerWidth-80) / MM(settings.paperW));
+
+  const wrap = document.createElement('div');
+  wrap.style.transform = `scale(${scale})`; wrap.style.transformOrigin='top center';
+  wrap.style.display='flex'; wrap.style.flexDirection='column'; wrap.style.gap='24px';
+
+  // cover
+  const cover = document.createElement('div'); cover.className='bookpage bp-cover';
+  cover.style.width = MM(settings.paperW)+'px'; cover.style.height = MM(settings.paperH)+'px';
+  cover.innerHTML = `<div style="font-size:28px;font-weight:700;font-family:'Noto Serif KR',serif">${settings.coverTitle||'제목 없는 책'}</div>
+    ${settings.coverSubtitle?`<div style="font-size:15px;color:#666">${settings.coverSubtitle}</div>`:''}
+    ${settings.coverAuthor?`<div style="font-size:14px;color:#888;margin-top:20px">${settings.coverAuthor}</div>`:''}`;
+  wrap.appendChild(cover);
+
+  // toc
+  if(settings.showToc && toc.length){
+    const tocPage = document.createElement('div'); tocPage.className='bookpage';
+    tocPage.style.width = MM(settings.paperW)+'px'; tocPage.style.height = MM(settings.paperH)+'px';
+    tocPage.style.padding = `${MM(settings.mT)}px ${MM(settings.mR)}px ${MM(settings.mB)}px ${MM(settings.mL)}px`;
+    const list = toc.map(t=>`<li><span>${t.title}</span><span>${t.page}</span></li>`).join('');
+    tocPage.innerHTML = `<h2 style="font-family:'Noto Serif KR',serif">목차</h2><ul class="bp-toc" style="list-style:none;padding:0">${list}</ul>`;
+    wrap.appendChild(tocPage);
+  }
+
+  // content pages
+  pages.forEach((pgContent, i)=>{
+    const bp = document.createElement('div'); bp.className='bookpage';
+    const body = renderPageChrome(bp, i+1, pages.length);
+    body.style.fontFamily = "'Noto Serif KR',serif"; body.style.fontSize='12pt'; body.style.lineHeight='1.6';
+    body.appendChild(pgContent);
+    wrap.appendChild(bp);
+  });
+
+  nav.appendChild(wrap);
+}
+document.getElementById('btnPreview').addEventListener('click', ()=>{
+  document.getElementById('bookOverlay').classList.add('show');
+  renderBookPreview();
+});
+document.getElementById('btnBookClose').addEventListener('click', ()=>{
+  document.getElementById('bookOverlay').classList.remove('show');
+});
+
+// ---- export standalone HTML book ----
+function exportBook(){
+  const {pages, toc} = buildBook();
+  const title = document.getElementById('docTitleInput').value || settings.coverTitle || '제목 없는 책';
+  let body = '';
+  body += `<section class="page cover"><div class="cover-title">${settings.coverTitle||title}</div>`;
+  if(settings.coverSubtitle) body += `<div class="cover-sub">${settings.coverSubtitle}</div>`;
+  if(settings.coverAuthor) body += `<div class="cover-author">${settings.coverAuthor}</div>`;
+  body += `</section>`;
+  if(settings.showToc && toc.length){
+    body += `<section class="page toc"><h2>목차</h2><ul>`;
+    toc.forEach(t=> body += `<li><span>${t.title}</span><span>${t.page}</span></li>`);
+    body += `</ul></section>`;
+  }
+  pages.forEach((pg,i)=>{
+    body += `<section class="page content">`;
+    if(settings.headerText) body += `<div class="ph">${settings.headerText}</div>`;
+    body += `<div class="pb">${pg.innerHTML}</div>`;
+    body += `<div class="pf" style="text-align:${settings.pageNumPos==='right'?'right':'center'}">${settings.showPageNum? (i+1) : ''}</div>`;
+    body += `</section>`;
+  });
+
+  const html = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${title}</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--w:${MM(settings.paperW)}px;--h:${MM(settings.paperH)}px;--mt:${MM(settings.mT)}px;--mb:${MM(settings.mB)}px;--ml:${MM(settings.mL)}px;--mr:${MM(settings.mR)}px;}
+*{box-sizing:border-box}
+body{margin:0;background:#3a3a36;font-family:'Noto Serif KR',serif;display:flex;flex-direction:column;align-items:center;padding:30px 10px;gap:24px}
+.page{width:var(--w);max-width:94vw;min-height:var(--h);background:#fff;box-shadow:0 4px 24px rgba(0,0,0,.35);padding:var(--mt) var(--mr) var(--mb) var(--ml);display:flex;flex-direction:column}
+.cover{align-items:center;justify-content:center;text-align:center;gap:12px}
+.cover-title{font-size:30px;font-weight:700}
+.cover-sub{font-size:16px;color:#666}
+.cover-author{font-size:14px;color:#888;margin-top:24px}
+.toc ul{list-style:none;padding:0}
+.toc li{display:flex;justify-content:space-between;margin-bottom:8px;font-size:15px}
+.content{position:relative}
+.ph{font-size:11px;color:#999;text-align:center;margin-bottom:10px}
+.pb{flex:1;font-size:12pt;line-height:1.6}
+.pb h1.chapter{font-size:1.6em;border-bottom:2px solid #2c4a3e;padding-bottom:.3em;margin:0 0 .6em}
+.pb p{margin:0 0 1em}
+.pf{font-size:11px;color:#999;margin-top:10px}
+@media print{
+  body{background:#fff;padding:0;gap:0}
+  .page{box-shadow:none;page-break-after:always;max-width:none}
+}
+</style></head><body>${body}</body></html>`;
+
+  const blob = new Blob([html], {type:'text/html'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (title.replace(/[\\/:*?"<>|]/g,'') || 'book') + '.html';
+  a.click();
+}
+document.getElementById('btnExport').addEventListener('click', exportBook);
+</script>
+</body>
+</html>
