@@ -11,9 +11,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{
-  --ink:#191919; --ink-soft:#3d3d3b; --paper:#ffffff; --bg:#f6f5f2; --surface:#ffffff;
-  --line:#e7e5df; --line-strong:#dcdad2; --accent:#3182f6; --accent-hover:#1c6fe0; --accent-soft:#eaf2fe;
-  --muted:#8b8b86; --radius:10px; --radius-sm:7px;
+  --ink:#191919; --ink-soft:#3d3d3d; --paper:#ffffff; --bg:#f2f2f2; --canvas:#e8e8e8; --surface:#ffffff;
+  --line:#e4e4e4; --line-strong:#d2d2d2; --accent:#3182f6; --accent-hover:#1c6fe0; --accent-soft:#eaf2fe;
+  --muted:#8a8a8a; --radius:10px; --radius-sm:7px;
   --font-ui:'Pretendard','Noto Sans KR',-apple-system,BlinkMacSystemFont,sans-serif;
 }
 *{box-sizing:border-box}
@@ -52,10 +52,14 @@ input[type=color]{width:28px;height:28px;border:1px solid var(--line);border-rad
 input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px}
 
 /* ---- workspace ---- */
-#workspace{flex:1;overflow:auto;display:flex;justify-content:center;padding:44px 20px}
-#page{background:var(--paper);box-shadow:0 1px 2px rgba(20,20,18,.04),0 10px 30px rgba(20,20,18,.06);outline:none;font-family:var(--font-ui);border-radius:2px}
-#page h1.chapter{font-size:1.55em;font-weight:700;margin:0 0 .6em;padding-bottom:.4em;border-bottom:1px solid var(--line-strong);}
-#page p{margin:0 0 1em;}
+ #workspace{flex:1;overflow:auto;padding:36px 20px;background:var(--canvas)}
+#page{display:flex;flex-direction:column;align-items:center;gap:24px;outline:none;width:max-content;margin:0 auto}
+.sheet{width:var(--pw);height:var(--ph);padding:var(--pt) var(--pr) var(--pb) var(--pl);background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08),0 6px 20px rgba(0,0,0,.08);position:relative;overflow:hidden;flex-shrink:0;box-sizing:border-box;font-family:'Noto Serif KR',serif;font-size:12pt;line-height:1.6;color:#191919}
+.sheet.grow{height:auto;min-height:var(--ph);overflow:visible}
+.sheet::before{content:attr(data-h);position:absolute;top:calc(var(--pt)/2 - 8px);left:0;right:0;text-align:center;font:11px var(--font-ui);color:#999;pointer-events:none}
+.sheet::after{content:attr(data-n);position:absolute;bottom:calc(var(--pb)/2 - 8px);left:var(--pl);right:var(--pr);text-align:var(--pna,center);font:11px var(--font-ui);color:#999;pointer-events:none}
+.sheet h1.chapter{font-size:1.55em;font-weight:700;margin:0 0 .6em;padding-bottom:.4em;border-bottom:1px solid var(--line-strong)}
+.sheet p{margin:0 0 1em}
 
 /* ---- settings modal ---- */
 .overlay{position:fixed;inset:0;background:rgba(25,25,25,.38);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;backdrop-filter:blur(2px)}
@@ -81,9 +85,9 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px}
 .bookpage{background:#fff;position:relative;display:flex;flex-direction:column}
 #exportBusy{position:fixed;inset:0;background:rgba(25,25,25,.5);display:none;align-items:center;justify-content:center;z-index:80;color:#fff;font-size:14px}
 #exportBusy.show{display:flex}
-.bp-header{font-size:11px;color:#a3a39c;text-align:center;flex-shrink:0}
+.bp-header{font-size:11px;color:#a3a3a3;text-align:center;flex-shrink:0}
 .bp-body{flex:1;overflow:hidden}
-.bp-footer{font-size:11px;color:#a3a39c;text-align:center;flex-shrink:0}
+.bp-footer{font-size:11px;color:#a3a3a3;text-align:center;flex-shrink:0}
 .bp-cover{align-items:center;justify-content:center;text-align:center;display:flex;flex-direction:column;gap:10px}
 .bp-toc li{margin-bottom:8px;display:flex;justify-content:space-between;font-size:14px;color:var(--ink-soft)}
 </style>
@@ -107,8 +111,8 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px}
   <div id="toolbar">
     <div class="grp">
       <select id="fontFamily">
-        <option value="'Noto Sans KR',sans-serif">맑은 고딕</option>
         <option value="'Noto Serif KR',serif">본명조</option>
+        <option value="'Noto Sans KR',sans-serif">맑은 고딕</option>
         <option value="'Nanum Myeongjo',serif">나눔명조</option>
         <option value="'Nanum Gothic',sans-serif">나눔고딕</option>
       </select>
@@ -234,11 +238,12 @@ const savedTitle = localStorage.getItem('geulwol_title');
 if(savedContent) page.innerHTML = savedContent;
 if(savedTitle) document.getElementById('docTitleInput').value = savedTitle;
 
-function applyPageBox(){
-  page.style.width = MM(settings.paperW)+'px';
-  page.style.minHeight = MM(settings.paperH)+'px';
-  page.style.padding = `${MM(settings.mT)}px ${MM(settings.mR)}px ${MM(settings.mB)}px ${MM(settings.mL)}px`;
+function setVars(el){
+  const st=el.style;
+  [['--pw',settings.paperW],['--ph',settings.paperH],['--pt',settings.mT],['--pb',settings.mB],['--pl',settings.mL],['--pr',settings.mR]].forEach(([k,v])=>st.setProperty(k,MM(v)+'px'));
+  st.setProperty('--pna', settings.pageNumPos==='right'?'right':'center');
 }
+function applyPageBox(){ setVars(page); }
 applyPageBox();
 
 function showSaveStatus(text){
@@ -248,7 +253,10 @@ function showSaveStatus(text){
   el.textContent = `${text} · ${timeStr}`;
 }
 let autosaveTimer = null;
-function autosave(){
+let rfId=0;
+function scheduleReflow(){ cancelAnimationFrame(rfId); rfId=requestAnimationFrame(()=>{ reflow(); persist(); }); }
+function autosave(){ scheduleReflow(); }
+function persist(){
   localStorage.setItem('geulwol_content', page.innerHTML);
   localStorage.setItem('geulwol_title', document.getElementById('docTitleInput').value);
   clearTimeout(autosaveTimer);
@@ -320,7 +328,7 @@ document.getElementById('lineHeight').addEventListener('change', e=>{
 document.getElementById('btnChapter').addEventListener('click', ()=>{
   const h = document.createElement('h1'); h.className='chapter'; h.textContent='새 챕터 제목';
   const p = document.createElement('p'); p.textContent='내용을 입력하세요.';
-  page.appendChild(h); page.appendChild(p);
+  const last = page.lastElementChild || page; last.appendChild(h); last.appendChild(p);
   autosave();
 });
 
@@ -362,7 +370,7 @@ document.getElementById('settingsSave').addEventListener('click', ()=>{
     coverAuthor:document.getElementById('coverAuthor').value, showToc:document.getElementById('showToc').checked
   };
   localStorage.setItem('geulwol_settings', JSON.stringify(settings));
-  applyPageBox();
+  applyPageBox(); scheduleReflow();
   settingsOverlay.classList.remove('show');
 });
 
@@ -407,71 +415,103 @@ document.getElementById('fileInput').addEventListener('change', e=>{
   e.target.value = '';
 });
 
-// ---- pagination engine ----
-function paginateContent(sourceEl, contentWpx, contentHpx, fontCss){
-  const measurer = document.createElement('div');
-  measurer.style.cssText = `position:absolute;visibility:hidden;left:-99999px;top:0;width:${contentWpx}px;`;
-  measurer.setAttribute('style', measurer.getAttribute('style') + fontCss);
-  document.body.appendChild(measurer);
-  const blocks = Array.from(sourceEl.children);
-  const pages = [];
-  let current = document.createElement('div'); let curH = 0;
-  blocks.forEach(block=>{
-    const clone = block.cloneNode(true);
-    measurer.appendChild(clone);
-    const h = clone.getBoundingClientRect().height + 16; // approx margin
-    measurer.removeChild(clone);
-    const forceBreak = block.tagName === 'H1' && current.children.length > 0;
-    if(forceBreak || (curH + h > contentHpx && current.children.length>0)){
-      pages.push(current); current = document.createElement('div'); curH = 0;
+// ---- 페이지 자동 넘김 엔진 ----
+const BLOCK=/^(P|H[1-6]|DIV|UL|OL|BLOCKQUOTE|PRE|TABLE|HR)$/;
+const isBlock=n=>n.nodeType===1&&BLOCK.test(n.tagName);
+const isSheet=n=>n.nodeType===1&&n.classList.contains('sheet');
+function collectBlocks(){
+  const out=[];
+  const push=n=>{
+    if(n.nodeType===3&&!n.textContent.trim()) return;
+    if(n.nodeType!==1&&n.nodeType!==3) return;
+    if(isBlock(n)) out.push(n);
+    else{ const p=document.createElement('p'); n.parentNode.replaceChild(p,n); p.appendChild(n); out.push(p); }
+  };
+  Array.from(page.childNodes).forEach(n=>{ if(isSheet(n)) Array.from(n.childNodes).forEach(push); else push(n); });
+  return out;
+}
+function rebuild(){
+  const blocks=collectBlocks();
+  page.innerHTML='';
+  const s=document.createElement('div'); s.className='sheet'; page.appendChild(s);
+  if(!blocks.length){ const p=document.createElement('p'); p.innerHTML='<br>'; blocks.push(p); }
+  blocks.forEach(b=>s.appendChild(b));
+}
+function needRebuild(){
+  if(!page.childNodes.length) return true;
+  return Array.from(page.childNodes).some(n=>!isSheet(n)) || Array.from(page.children).some(s=>Array.from(s.childNodes).some(c=>!isBlock(c)&&!(c.nodeType===3&&!c.textContent.trim())));
+}
+function saveCaret(){
+  const sel=getSelection();
+  if(!sel.rangeCount||!sel.isCollapsed||!page.contains(sel.anchorNode)) return null;
+  let b=sel.anchorNode;
+  while(b&&b.parentNode&&b.parentNode!==page&&!isSheet(b.parentNode)) b=b.parentNode;
+  if(!b||b.nodeType!==1||isSheet(b)) return null;
+  const r=document.createRange(); r.selectNodeContents(b); r.setEnd(sel.anchorNode,sel.anchorOffset);
+  return {b,off:r.toString().length};
+}
+function restoreCaret(c){
+  if(!c||!c.b.isConnected) return;
+  const w=document.createTreeWalker(c.b,NodeFilter.SHOW_TEXT), r=document.createRange();
+  let n,left=c.off;
+  while((n=w.nextNode())){ if(left<=n.length){ r.setStart(n,left); break; } left-=n.length; }
+  if(!n) r.setStart(c.b, c.off? c.b.childNodes.length : 0);
+  r.collapse(true);
+  const sel=getSelection(); sel.removeAllRanges(); sel.addRange(r);
+  c.b.scrollIntoView({block:'nearest'});
+}
+function reflow(){
+  const caret=saveCaret(); let moved=false;
+  if(needRebuild()){ rebuild(); moved=true; }
+  const sheets=Array.from(page.children);
+  const limit=MM(settings.paperH-settings.mB);
+  const top=el=>el.getBoundingClientRect().top;
+  const mk=()=>{ const d=document.createElement('div'); d.className='sheet'; moved=true; return d; };
+  const fits=(s,b)=>{
+    const l=s.lastElementChild;
+    const used=l? l.getBoundingClientRect().bottom-top(s)+parseFloat(getComputedStyle(l).marginBottom) : MM(settings.mT);
+    return used+b.getBoundingClientRect().height+4<=limit;
+  };
+  for(let i=0;i<sheets.length;i++){
+    const s=sheets[i];
+    if(!s.firstElementChild){ s.remove(); sheets.splice(i--,1); moved=true; continue; }
+    const ci=Array.from(s.children).findIndex((c,k)=>k>0&&c.matches('h1.chapter'));
+    if(ci>0){ const nx=mk(); s.after(nx); sheets.splice(i+1,0,nx); Array.from(s.children).slice(ci).forEach(c=>nx.appendChild(c)); }
+    const over=()=>s.children.length>1 && s.lastElementChild.getBoundingClientRect().bottom-top(s)>limit+.5;
+    while(over()){
+      let nx=sheets[i+1];
+      if(!nx||(nx.firstElementChild&&nx.firstElementChild.matches('h1.chapter'))){ nx=mk(); s.after(nx); sheets.splice(i+1,0,nx); }
+      nx.insertBefore(s.lastElementChild,nx.firstChild); moved=true;
     }
-    current.appendChild(block.cloneNode(true));
-    curH += h;
+    const nx=sheets[i+1];
+    while(nx&&nx.firstElementChild&&!nx.firstElementChild.matches('h1.chapter')&&fits(s,nx.firstElementChild)){ s.appendChild(nx.firstElementChild); moved=true; }
+  }
+  if(!page.children.length){ rebuild(); moved=true; sheets.push(page.firstElementChild); }
+  sheets.forEach((s,k)=>{
+    const n=settings.showPageNum?String(k+1):'', h=settings.headerText||'';
+    if(s.dataset.n!==n) s.dataset.n=n;
+    if(s.dataset.h!==h) s.dataset.h=h;
+    const g=s.children.length===1 && s.lastElementChild.getBoundingClientRect().bottom-top(s)>limit+.5;
+    if(s.classList.contains('grow')!==g) s.classList.toggle('grow',g);
   });
-  if(current.children.length) pages.push(current);
-  document.body.removeChild(measurer);
-  return pages;
+  if(moved) restoreCaret(caret);
 }
 
 function buildBook(){
-  const contentW = MM(settings.paperW) - MM(settings.mL) - MM(settings.mR);
-  const headerRes = settings.headerText ? 26 : 0;
-  const footerRes = 26;
-  const contentH = MM(settings.paperH) - MM(settings.mT) - MM(settings.mB) - headerRes - footerRes;
-  const fontCss = `font-family:'Noto Serif KR',serif;font-size:12pt;line-height:1.6;`;
-  const pages = paginateContent(page, contentW, contentH, fontCss);
-
-  const toc = [];
-  pages.forEach((pg,i)=>{
-    const h1 = pg.querySelector('h1.chapter');
-    if(h1) toc.push({title:h1.textContent, page:i+1});
+  reflow();
+  const pages=Array.from(page.querySelectorAll('.sheet')).map(s=>{
+    const d=document.createElement('div'); Array.from(s.children).forEach(c=>d.appendChild(c.cloneNode(true))); return d;
   });
-  return {pages, toc, contentW, contentH, headerRes, footerRes};
-}
-
-function renderPageChrome(container, pageIndex, totalPages){
-  const w = MM(settings.paperW), h = MM(settings.paperH);
-  container.style.width = w+'px'; container.style.height = h+'px';
-  container.style.padding = `${MM(settings.mT)}px ${MM(settings.mR)}px ${MM(settings.mB)}px ${MM(settings.mL)}px`;
-  if(settings.headerText){
-    const hd = document.createElement('div'); hd.className='bp-header'; hd.textContent = settings.headerText;
-    container.appendChild(hd);
-  }
-  const body = document.createElement('div'); body.className='bp-body'; container.appendChild(body);
-  const ft = document.createElement('div'); ft.className='bp-footer';
-  if(settings.showPageNum){
-    ft.textContent = pageIndex;
-    ft.style.textAlign = settings.pageNumPos==='right' ? 'right' : 'center';
-  }
-  container.appendChild(ft);
-  return body;
+  const toc=[];
+  pages.forEach((pg,i)=>{ const h=pg.querySelector('h1.chapter'); if(h) toc.push({title:h.textContent,page:i+1}); });
+  return {pages,toc};
 }
 
 // ---- PNG / PDF 내보내기용: 화면 밖에 실제 페이지들을 렌더링 ----
 function buildOffscreenPages(){
   const {pages, toc} = buildBook();
   const holder = document.createElement('div');
-  holder.style.cssText = 'position:absolute;left:-99999px;top:0;';
+  holder.style.cssText = 'position:absolute;left:-99999px;top:0;'; setVars(holder);
   document.body.appendChild(holder);
   const pageEls = [];
 
@@ -492,10 +532,9 @@ function buildOffscreenPages(){
   }
 
   pages.forEach((pgContent, i)=>{
-    const bp = document.createElement('div'); bp.className='bookpage';
-    const body = renderPageChrome(bp, i+1, pages.length);
-    body.style.fontFamily = "'Noto Serif KR',serif"; body.style.fontSize='12pt'; body.style.lineHeight='1.6';
-    body.appendChild(pgContent);
+    const bp = document.createElement('div'); bp.className='sheet'; bp.style.boxShadow='none';
+    bp.dataset.h = settings.headerText||''; bp.dataset.n = settings.showPageNum? String(i+1):'';
+    while(pgContent.firstChild) bp.appendChild(pgContent.firstChild);
     holder.appendChild(bp); pageEls.push(bp);
   });
 
@@ -521,7 +560,7 @@ async function exportPNG(){
     const combined = document.createElement('canvas');
     combined.width = width + gap*2; combined.height = totalHeight;
     const ctx = combined.getContext('2d');
-    ctx.fillStyle = '#2b2a28'; ctx.fillRect(0,0,combined.width,combined.height);
+    ctx.fillStyle = '#2b2b2b'; ctx.fillRect(0,0,combined.width,combined.height);
     let y = gap;
     canvases.forEach(c=>{ ctx.drawImage(c, gap + (width-c.width)/2, y); y += c.height + gap; });
     combined.toBlob(blob=>{
@@ -569,11 +608,8 @@ function exportBook(){
     body += `</ul></section>`;
   }
   pages.forEach((pg,i)=>{
-    body += `<section class="page content">`;
-    if(settings.headerText) body += `<div class="ph">${settings.headerText}</div>`;
-    body += `<div class="pb">${pg.innerHTML}</div>`;
-    body += `<div class="pf" style="text-align:${settings.pageNumPos==='right'?'right':'center'}">${settings.showPageNum? (i+1) : ''}</div>`;
-    body += `</section>`;
+    const hd=(settings.headerText||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+    body += `<section class="page content" data-h="${hd}" data-n="${settings.showPageNum?(i+1):''}">${pg.innerHTML}</section>`;
   });
 
   const html = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
@@ -583,7 +619,7 @@ function exportBook(){
 <style>
 :root{--w:${MM(settings.paperW)}px;--h:${MM(settings.paperH)}px;--mt:${MM(settings.mT)}px;--mb:${MM(settings.mB)}px;--ml:${MM(settings.mL)}px;--mr:${MM(settings.mR)}px;}
 *{box-sizing:border-box}
-body{margin:0;background:#3a3a36;font-family:'Noto Serif KR',serif;display:flex;flex-direction:column;align-items:center;padding:30px 10px;gap:24px}
+body{margin:0;background:#3a3a3a;font-family:'Noto Serif KR',serif;display:flex;flex-direction:column;align-items:center;padding:30px 10px;gap:24px}
 .page{width:var(--w);max-width:94vw;min-height:var(--h);background:#fff;box-shadow:0 4px 24px rgba(0,0,0,.35);padding:var(--mt) var(--mr) var(--mb) var(--ml);display:flex;flex-direction:column}
 .cover{align-items:center;justify-content:center;text-align:center;gap:12px}
 .cover-title{font-size:30px;font-weight:700}
@@ -591,12 +627,11 @@ body{margin:0;background:#3a3a36;font-family:'Noto Serif KR',serif;display:flex;
 .cover-author{font-size:14px;color:#888;margin-top:24px}
 .toc ul{list-style:none;padding:0}
 .toc li{display:flex;justify-content:space-between;margin-bottom:8px;font-size:15px}
-.content{position:relative}
-.ph{font-size:11px;color:#999;text-align:center;margin-bottom:10px}
-.pb{flex:1;font-size:12pt;line-height:1.6}
-.pb h1.chapter{font-size:1.6em;border-bottom:2px solid #2c4a3e;padding-bottom:.3em;margin:0 0 .6em}
-.pb p{margin:0 0 1em}
-.pf{font-size:11px;color:#999;margin-top:10px}
+.content{position:relative;display:block;font-size:12pt;line-height:1.6}
+.content::before{content:attr(data-h);position:absolute;top:calc(var(--mt)/2 - 8px);left:0;right:0;text-align:center;font:11px sans-serif;color:#999}
+.content::after{content:attr(data-n);position:absolute;bottom:calc(var(--mb)/2 - 8px);left:var(--ml);right:var(--mr);text-align:${settings.pageNumPos==='right'?'right':'center'};font:11px sans-serif;color:#999}
+.content h1.chapter{font-size:1.55em;font-weight:700;margin:0 0 .6em;padding-bottom:.4em;border-bottom:1px solid #d2d2d2}
+.content p{margin:0 0 1em}
 @media print{
   body{background:#fff;padding:0;gap:0}
   .page{box-shadow:none;page-break-after:always;max-width:none}
@@ -610,6 +645,11 @@ body{margin:0;background:#3a3a36;font-family:'Noto Serif KR',serif;display:flex;
   a.click();
 }
 document.getElementById('btnExport').addEventListener('click', exportBook);
+
+// ---- init ----
+document.execCommand('defaultParagraphSeparator', false, 'p');
+if(document.fonts){ document.fonts.ready.then(scheduleReflow); document.fonts.addEventListener('loadingdone', scheduleReflow); }
+reflow();
 </script>
 </body>
 </html>
