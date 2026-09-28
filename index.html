@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&family=Nanum+Myeongjo:wght@400;700&family=Nanum+Gothic:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{
   --ink:#191919; --ink-soft:#3d3d3b; --paper:#ffffff; --bg:#f6f5f2; --surface:#ffffff;
@@ -31,6 +33,7 @@ button,select,input{font-family:inherit}
 .tb-btn:hover{background:var(--bg)}
 .tb-btn.primary{background:var(--accent);color:#fff;font-weight:600}
 .tb-btn.primary:hover{background:var(--accent-hover)}
+.save-status{font-size:11.5px;color:var(--muted);white-space:nowrap}
 
 /* ---- toolbar ---- */
 #toolbar{background:var(--surface);border-bottom:1px solid var(--line);padding:9px 22px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 4px;flex-shrink:0}
@@ -74,15 +77,10 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px}
 .btn.primary{background:var(--accent);color:#fff}
 .btn.primary:hover{background:var(--accent-hover)}
 
-/* ---- book preview ---- */
-#bookOverlay{position:fixed;inset:0;background:#2b2a28;z-index:60;display:none;flex-direction:column}
-#bookOverlay.show{display:flex}
-#bookTop{background:#211f1d;color:#fff;padding:12px 20px;display:flex;align-items:center;gap:10px;flex-shrink:0;font-size:13.5px;font-weight:500}
-#bookTop .spacer{flex:1}
-#bookTop .tb-btn{color:#fff}
-#bookTop .tb-btn:hover{background:rgba(255,255,255,.1)}
-#bookNav{flex:1;overflow:auto;display:flex;justify-content:center;align-items:flex-start;padding:36px}
-.bookpage{background:#fff;box-shadow:0 8px 32px rgba(0,0,0,.35);position:relative;display:flex;flex-direction:column;border-radius:2px}
+/* ---- 내보내기용 오프스크린 페이지 스타일 (PNG/PDF 캡처에 사용) ---- */
+.bookpage{background:#fff;position:relative;display:flex;flex-direction:column}
+#exportBusy{position:fixed;inset:0;background:rgba(25,25,25,.5);display:none;align-items:center;justify-content:center;z-index:80;color:#fff;font-size:14px}
+#exportBusy.show{display:flex}
 .bp-header{font-size:11px;color:#a3a39c;text-align:center;flex-shrink:0}
 .bp-body{flex:1;overflow:hidden}
 .bp-footer{font-size:11px;color:#a3a39c;text-align:center;flex-shrink:0}
@@ -95,9 +93,14 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px}
   <div id="titlebar">
     <h1>글월</h1>
     <input id="docTitleInput" placeholder="제목 없는 문서">
+    <span id="saveStatus" class="save-status"></span>
     <div class="spacer"></div>
+    <button class="tb-btn" id="btnSaveFile" title="이 컴퓨터의 다른 위치나 다른 데스크톱으로 옮길 수 있는 파일로 저장">💾 파일로 저장</button>
+    <button class="tb-btn" id="btnLoadFile" title="저장해둔 .gwol 파일 불러오기">📂 불러오기</button>
+    <input type="file" id="fileInput" accept=".gwol,.json" style="display:none">
     <button class="tb-btn" id="btnSettings">⚙ 페이지 설정</button>
-    <button class="tb-btn" id="btnPreview">📖 책 미리보기</button>
+    <button class="tb-btn" id="btnExportPNG">PNG로 저장</button>
+    <button class="tb-btn" id="btnExportPDF">PDF로 내보내기</button>
     <button class="tb-btn primary" id="btnExport">⬇ HTML로 내보내기</button>
   </div>
 
@@ -213,15 +216,7 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px}
   </div>
 </div>
 
-<!-- 책 미리보기 -->
-<div id="bookOverlay">
-  <div id="bookTop">
-    <span>📖 책 미리보기</span>
-    <div class="spacer"></div>
-    <button class="tb-btn" id="btnBookClose">닫기</button>
-  </div>
-  <div id="bookNav"></div>
-</div>
+<div id="exportBusy">내보내는 중…</div>
 
 <script>
 const page = document.getElementById('page');
@@ -246,12 +241,22 @@ function applyPageBox(){
 }
 applyPageBox();
 
+function showSaveStatus(text){
+  const el = document.getElementById('saveStatus');
+  const t = new Date();
+  const timeStr = t.toLocaleTimeString('ko-KR', {hour:'numeric', minute:'2-digit'});
+  el.textContent = `${text} · ${timeStr}`;
+}
+let autosaveTimer = null;
 function autosave(){
   localStorage.setItem('geulwol_content', page.innerHTML);
   localStorage.setItem('geulwol_title', document.getElementById('docTitleInput').value);
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(()=>showSaveStatus('이 브라우저에 자동 저장됨'), 400);
 }
 page.addEventListener('input', autosave);
 document.getElementById('docTitleInput').addEventListener('input', autosave);
+if(savedContent || savedTitle) showSaveStatus('이전 작업 불러옴');
 
 // ---- toolbar: bold/italic/underline/align ----
 document.querySelectorAll('[data-cmd]').forEach(b=>{
@@ -361,6 +366,47 @@ document.getElementById('settingsSave').addEventListener('click', ()=>{
   settingsOverlay.classList.remove('show');
 });
 
+// ---- 파일로 저장 / 불러오기 (다른 컴퓨터로 옮길 수 있는 단일 파일) ----
+function collectProjectData(){
+  return {
+    app:'geulwol', version:1,
+    title: document.getElementById('docTitleInput').value,
+    content: page.innerHTML,
+    settings: settings
+  };
+}
+function saveToFile(){
+  const data = collectProjectData();
+  const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const name = (document.getElementById('docTitleInput').value || settings.coverTitle || '제목 없는 문서').replace(/[\\/:*?"<>|]/g,'');
+  a.download = name + '.gwol';
+  a.click();
+  showSaveStatus('파일로 저장됨');
+}
+function loadFromFile(file){
+  const reader = new FileReader();
+  reader.onload = e=>{
+    let data;
+    try{ data = JSON.parse(e.target.result); }
+    catch(err){ alert('이 파일을 읽을 수 없습니다. 글월에서 저장한 .gwol 파일이 맞는지 확인해주세요.'); return; }
+    if(typeof data.content === 'string') page.innerHTML = data.content;
+    if(typeof data.title === 'string') document.getElementById('docTitleInput').value = data.title;
+    if(data.settings){ settings = data.settings; applyPageBox(); }
+    autosave();
+    localStorage.setItem('geulwol_settings', JSON.stringify(settings));
+    showSaveStatus('파일에서 불러옴');
+  };
+  reader.readAsText(file);
+}
+document.getElementById('btnSaveFile').addEventListener('click', saveToFile);
+document.getElementById('btnLoadFile').addEventListener('click', ()=>document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change', e=>{
+  if(e.target.files[0]) loadFromFile(e.target.files[0]);
+  e.target.value = '';
+});
+
 // ---- pagination engine ----
 function paginateContent(sourceEl, contentWpx, contentHpx, fontCss){
   const measurer = document.createElement('div');
@@ -421,52 +467,92 @@ function renderPageChrome(container, pageIndex, totalPages){
   return body;
 }
 
-function renderBookPreview(){
+// ---- PNG / PDF 내보내기용: 화면 밖에 실제 페이지들을 렌더링 ----
+function buildOffscreenPages(){
   const {pages, toc} = buildBook();
-  const nav = document.getElementById('bookNav');
-  nav.innerHTML = '';
-  const scale = Math.min(1, (window.innerWidth-80) / MM(settings.paperW));
+  const holder = document.createElement('div');
+  holder.style.cssText = 'position:absolute;left:-99999px;top:0;';
+  document.body.appendChild(holder);
+  const pageEls = [];
 
-  const wrap = document.createElement('div');
-  wrap.style.transform = `scale(${scale})`; wrap.style.transformOrigin='top center';
-  wrap.style.display='flex'; wrap.style.flexDirection='column'; wrap.style.gap='24px';
-
-  // cover
   const cover = document.createElement('div'); cover.className='bookpage bp-cover';
   cover.style.width = MM(settings.paperW)+'px'; cover.style.height = MM(settings.paperH)+'px';
   cover.innerHTML = `<div style="font-size:28px;font-weight:700;font-family:'Noto Serif KR',serif">${settings.coverTitle||'제목 없는 책'}</div>
     ${settings.coverSubtitle?`<div style="font-size:15px;color:#666">${settings.coverSubtitle}</div>`:''}
     ${settings.coverAuthor?`<div style="font-size:14px;color:#888;margin-top:20px">${settings.coverAuthor}</div>`:''}`;
-  wrap.appendChild(cover);
+  holder.appendChild(cover); pageEls.push(cover);
 
-  // toc
   if(settings.showToc && toc.length){
     const tocPage = document.createElement('div'); tocPage.className='bookpage';
     tocPage.style.width = MM(settings.paperW)+'px'; tocPage.style.height = MM(settings.paperH)+'px';
     tocPage.style.padding = `${MM(settings.mT)}px ${MM(settings.mR)}px ${MM(settings.mB)}px ${MM(settings.mL)}px`;
     const list = toc.map(t=>`<li><span>${t.title}</span><span>${t.page}</span></li>`).join('');
     tocPage.innerHTML = `<h2 style="font-family:'Noto Serif KR',serif">목차</h2><ul class="bp-toc" style="list-style:none;padding:0">${list}</ul>`;
-    wrap.appendChild(tocPage);
+    holder.appendChild(tocPage); pageEls.push(tocPage);
   }
 
-  // content pages
   pages.forEach((pgContent, i)=>{
     const bp = document.createElement('div'); bp.className='bookpage';
     const body = renderPageChrome(bp, i+1, pages.length);
     body.style.fontFamily = "'Noto Serif KR',serif"; body.style.fontSize='12pt'; body.style.lineHeight='1.6';
     body.appendChild(pgContent);
-    wrap.appendChild(bp);
+    holder.appendChild(bp); pageEls.push(bp);
   });
 
-  nav.appendChild(wrap);
+  return {holder, pageEls};
 }
-document.getElementById('btnPreview').addEventListener('click', ()=>{
-  document.getElementById('bookOverlay').classList.add('show');
-  renderBookPreview();
-});
-document.getElementById('btnBookClose').addEventListener('click', ()=>{
-  document.getElementById('bookOverlay').classList.remove('show');
-});
+
+function getExportTitle(){
+  return document.getElementById('docTitleInput').value || settings.coverTitle || '제목 없는 책';
+}
+
+async function exportPNG(){
+  const busy = document.getElementById('exportBusy'); busy.classList.add('show');
+  try{
+    const {holder, pageEls} = buildOffscreenPages();
+    const canvases = [];
+    for(const el of pageEls){
+      canvases.push(await html2canvas(el, {scale:2, backgroundColor:'#ffffff'}));
+    }
+    document.body.removeChild(holder);
+    const gap = 30;
+    const width = Math.max(...canvases.map(c=>c.width));
+    const totalHeight = canvases.reduce((s,c)=>s+c.height,0) + gap*(canvases.length-1) + gap*2;
+    const combined = document.createElement('canvas');
+    combined.width = width + gap*2; combined.height = totalHeight;
+    const ctx = combined.getContext('2d');
+    ctx.fillStyle = '#2b2a28'; ctx.fillRect(0,0,combined.width,combined.height);
+    let y = gap;
+    canvases.forEach(c=>{ ctx.drawImage(c, gap + (width-c.width)/2, y); y += c.height + gap; });
+    combined.toBlob(blob=>{
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = getExportTitle().replace(/[\\/:*?"<>|]/g,'') + '.png';
+      a.click();
+      busy.classList.remove('show');
+    });
+  }catch(e){ console.error(e); alert('PNG 저장 중 오류가 발생했습니다.'); busy.classList.remove('show'); }
+}
+
+async function exportPDF(){
+  const busy = document.getElementById('exportBusy'); busy.classList.add('show');
+  try{
+    const {holder, pageEls} = buildOffscreenPages();
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({unit:'mm', format:[settings.paperW, settings.paperH]});
+    for(let i=0;i<pageEls.length;i++){
+      const canvas = await html2canvas(pageEls[i], {scale:2, backgroundColor:'#ffffff'});
+      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+      if(i>0) pdf.addPage([settings.paperW, settings.paperH]);
+      pdf.addImage(imgData, 'JPEG', 0, 0, settings.paperW, settings.paperH);
+    }
+    document.body.removeChild(holder);
+    pdf.save(getExportTitle().replace(/[\\/:*?"<>|]/g,'') + '.pdf');
+  }catch(e){ console.error(e); alert('PDF 내보내기 중 오류가 발생했습니다.'); }
+  busy.classList.remove('show');
+}
+document.getElementById('btnExportPNG').addEventListener('click', exportPNG);
+document.getElementById('btnExportPDF').addEventListener('click', exportPDF);
 
 // ---- export standalone HTML book ----
 function exportBook(){
